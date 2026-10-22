@@ -83,6 +83,41 @@ Trading firms, quantitative funds, and cryptocurrency exchanges generate tens of
 
 ---
 
+## 🔒 Financial-Grade Trading Security Architecture
+
+In automated trading and quantitative backtesting, market data integrity is directly tied to capital safety. This service implements the **zero-trust security standards** utilized by institutional crypto exchanges (Binance, Bybit, Coinbase):
+
+```
++-----------------------------------------------------------------------------+
+|                      5-Layer Financial Defense In Depth                     |
++-----------------------------------------------------------------------------+
+  1. HMAC-SHA256 Payload Signing   -> Cryptographic tamper-proofing of queries
+  2. Anti-Replay Timestamp Check   -> Eliminates network packet replay (+/-5000ms drift)
+  3. Constant-Time Verification    -> Immune to CPU cache side-channel timing attacks
+  4. S3 Presigned URL Isolation    -> AWS IAM zero-credential exposure to clients
+  5. WebSocket Backpressure Pacing -> Prevents buffer bloat and stale order book ticks
++-----------------------------------------------------------------------------+
+```
+
+### 1. Cryptographic HMAC-SHA256 Request Signing
+Every incoming REST request requires:
+- `X-API-Key`: Identifies the client and fetches the associated secret from the secure vault.
+- `X-Timestamp`: Epoch millisecond timestamp of request generation.
+- `X-Signature`: SHA-256 HMAC hash of `timestamp + method + path + query + body` generated using the trader's private secret.
+
+### 2. Strict Anti-Replay Window (NTP Clock Sync)
+- Requests with timestamp drift > 5000ms compared to server time are immediately aborted with `HTTP 403 Forbidden`.
+- Prevents intercepted network packets from being replayed to manipulate quotas or trigger duplicate calculations.
+
+### 3. Timing-Attack Hardened Verification
+- Authentic signatures are verified using `hmac.compare_digest()`, eliminating information leakage through timing variances in string comparisons.
+
+### 4. WebSocket Flow Control & Memory Protection
+- Replay speed is capped at `10x` to prevent client-side buffer bloat.
+- Mandates a strict 5-second initial authentication handshake to drop unauthenticated idle sockets and mitigate socket starvation attacks.
+
+---
+
 ## 🛠 Tech Stack & Core Libraries
 
 - **Runtime & Language**: Python 3.11+, Asyncio
